@@ -1,25 +1,32 @@
-FROM ruby:3.2.0
+FROM --platform=amd64 ruby:3.2.0
 
-# Set timezone.
-ENV TZ="Asia/Tokyo"
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
+  && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
+  && apt-get update \
+  && curl -fsSL https://deb.nodesource.com/setup_14.x | bash \
+  && apt-get install -y nodejs cron \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir /myapp
 
-# Install Rails.
-RUN gem install rails
+RUN npm install --global yarn
+RUN yarn install --network-timeout 600000
 
+WORKDIR /myapp
+COPY Gemfile /myapp/Gemfile
 
-# [Optional] Comment/Uncomment this section to avoid/install additional OS packages.
-ENV RAILS_DEVELOPMENT_HOSTS=".githubpreview.dev"
+COPY Gemfile.lock /myapp/Gemfile.lock
 
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    && apt-get -y install --no-install-recommends graphviz mariadb-client
-# RUN gem install <your-gem-names-here>
+RUN bundle install
 
-# [Optional] Uncomment this line to install global node packages.
-# RUN su vscode -c "source /usr/local/share/nvm/nvm.sh && npm install -g <your-package-here>" 2>&1
+COPY . /myapp
 
-WORKDIR /workspaces/proteinuslp-back
+COPY entrypoint.sh /usr/bin/
 
-RUN useradd --create-home --shell /bin/bash vscode
-RUN chown vscode:vscode -R /workspaces /usr/local/bundle
+RUN chmod +x /usr/bin/entrypoint.sh
 
-# USER vscode
+ENTRYPOINT ["entrypoint.sh"]
+
+EXPOSE 3000
+
+CMD ["rails", "server", "-b", "0.0.0.0"]
